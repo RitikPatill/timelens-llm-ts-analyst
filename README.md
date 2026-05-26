@@ -1,18 +1,35 @@
-# TimeLens
+# TimeLens – LLM Time-Series Analyst
 
-TimeLens — Upload a CSV, get an LLM-powered time-series analysis report.
+Drop a CSV time series; get anomaly detection, trend analysis, and LLM-generated plain-English explanations in seconds.
 
 ## Status
 
 | Milestone | Description | State |
 |---|---|---|
 | M1 | Scaffold: package layout, pinned dependencies, `pyproject.toml`, smoke test | Done |
-| M2 | CSV ingestion and preprocessing (`ingest.py`) | Planned |
+| M2 | CSV ingestion and preprocessing (`ingest.py`) | Done |
 | M3 | Anomaly detection — Z-score + IQR (`detect.py`) | Planned |
 | M4 | Plotly chart generation (`visualize.py`) | Planned |
 | M5 | Claude LLM narrative report (`report.py`) | Planned |
 | M6 | FastAPI endpoint — `POST /analyze` (`api.py`) | Planned |
 | M7 | Demo GIF, polish, deployment notes | Planned |
+
+## What works
+
+**M1 — package scaffold**
+Package is installable (`pip install -e .`), version is importable, smoke test passes.
+
+**M2 — CSV ingestion and preprocessing (`timelens.ingest`)**
+
+`load_csv(source, *, max_gap_fill=5) → tuple[pd.DataFrame, SeriesMetadata]`
+
+- Accepts a file path, `pathlib.Path`, file-like object, or raw bytes.
+- Auto-detects the timestamp column by attempting `pd.to_datetime()` on each non-numeric column; requires >80% parseable values.
+- Auto-detects all numeric value columns; raises `ValueError` if none exist.
+- Infers the dominant sampling frequency via `pd.infer_freq()`; falls back to median inter-sample timedelta.
+- Resamples to a uniform `DatetimeIndex` and forward-fills gaps up to `max_gap_fill` consecutive rows (default 5).
+- Returns a `SeriesMetadata` dataclass exposing: `timestamp_col`, `value_cols`, `length`, `frequency`, `value_min`, `value_max`, `value_mean`.
+- 9 tests pass against a bundled hourly-temperature fixture (`tests/fixtures/sample.csv`).
 
 ## Why TimeLens
 
@@ -33,19 +50,19 @@ Ops teams and data analysts routinely wrestle with time-series CSVs—server met
 
 ## Architecture
 
-Planned five-stage pipeline from raw CSV to JSON response. Module stubs are in place; implementation begins at M2.
+Five-stage pipeline from raw CSV to JSON response.
 
 ```
 CSV Upload → ingest.py → detect.py → visualize.py → report.py → JSON response
 ```
 
-| Stage | Module | Responsibility |
-|---|---|---|
-| Ingest | `ingest.py` | Parse CSV, detect timestamp column, resample, fill gaps |
-| Detect | `detect.py` | Z-score + IQR anomaly flagging |
-| Visualize | `visualize.py` | Plotly chart with red anomaly markers |
-| Report | `report.py` | Claude LLM narrative: trend, anomalies, next steps |
-| Serve | `api.py` | `POST /analyze` → `{chart_html, report}` |
+| Stage | Module | Status | Responsibility |
+|---|---|---|---|
+| Ingest | `ingest.py` | Done (M2) | Parse CSV, detect timestamp and numeric columns, resample to uniform frequency, forward-fill gaps, return `SeriesMetadata` |
+| Detect | `detect.py` | Stub (M3) | Z-score + IQR anomaly flagging |
+| Visualize | `visualize.py` | Stub (M4) | Plotly chart with anomaly markers |
+| Report | `report.py` | Stub (M5) | Claude LLM narrative: trend, anomalies, next steps |
+| Serve | `api.py` | Stub (M6) | `POST /analyze` → `{chart_html, report}` |
 
 ## Quickstart
 
@@ -58,6 +75,10 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
+
+# verify the ingestion pipeline (M2 — all 9 tests pass):
+pytest tests/
+
 # available after M6:
 # uvicorn timelens.api:app --reload
 ```
@@ -82,7 +103,10 @@ timelens-llm-ts-analyst/
 │       └── api.py          # FastAPI application entry-point
 ├── tests/
 │   ├── __init__.py
-│   └── test_import.py      # Smoke test: package importable, version correct
+│   ├── test_import.py          # Smoke test: package importable, version correct
+│   ├── test_ingest.py          # M2 ingest pipeline tests (9 tests)
+│   └── fixtures/
+│       └── sample.csv          # Hourly temperature fixture with one gap row
 ├── requirements.txt
 ├── pyproject.toml
 ├── LICENSE
