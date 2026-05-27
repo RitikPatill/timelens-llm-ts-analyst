@@ -9,7 +9,7 @@ Drop a CSV time series; get anomaly detection, trend analysis, and LLM-generated
 | M1 | Scaffold: package layout, pinned dependencies, `pyproject.toml`, smoke test | Done |
 | M2 | CSV ingestion and preprocessing (`ingest.py`) | Done |
 | M3 | Anomaly detection — Z-score + IQR (`detect.py`) | Done |
-| M4 | Plotly chart generation (`visualize.py`) | Planned |
+| M4 | Plotly chart generation (`visualize.py`) | Done |
 | M5 | Claude LLM narrative report (`report.py`) | Planned |
 | M6 | FastAPI endpoint — `POST /analyze` (`api.py`) | Planned |
 | M7 | Demo GIF, polish, deployment notes | Planned |
@@ -29,6 +29,18 @@ Package is installable (`pip install -e .`), version is importable, smoke test p
 - Appends `is_anomaly` (bool, union of both methods across all value columns) and `anomaly_score` (float, max absolute Z-score across columns).
 - Does not mutate the input DataFrame.
 - 8 tests pass covering flat series, single spike, step-change outlier, all-anomaly series, threshold sensitivity, output schema (columns and dtypes), and input immutability.
+
+**M4 — Plotly chart generation (`timelens.visualize`)**
+
+`render_chart(df, value_col, *, title="Time Series Analysis") → str`
+
+- Accepts a DataFrame with DatetimeIndex — either the raw output of `load_csv()` or the enriched output of `detect_anomalies()`.
+- Renders an interactive Plotly line chart for the specified value column.
+- When `is_anomaly` (bool) and `anomaly_score` (float) columns are present, overlays anomaly points as red open-circle markers; hover labels show timestamp, value, and score rounded to two decimal places.
+- When anomaly columns are absent the overlay is silently skipped, so the function is safe to call before running detection.
+- Returns a self-contained `<div>` snippet via `plotly.io.to_html(full_html=False, include_plotlyjs=True)`; no surrounding `<html>` or `<body>` tags.
+- Does not mutate the input DataFrame.
+- 3 tests pass: smoke test against the bundled fixture with anomaly overlay, raw DataFrame (pre-detect) path, and custom title propagation.
 
 **M2 — CSV ingestion and preprocessing (`timelens.ingest`)**
 
@@ -71,7 +83,7 @@ CSV Upload → ingest.py → detect.py → visualize.py → report.py → JSON r
 |---|---|---|---|
 | Ingest | `ingest.py` | Done (M2) | Parse CSV, detect timestamp and numeric columns, resample to uniform frequency, forward-fill gaps, return `SeriesMetadata` |
 | Detect | `detect.py` | Done (M3) | Z-score + IQR anomaly flagging |
-| Visualize | `visualize.py` | Stub (M4) | Plotly chart with anomaly markers |
+| Visualize | `visualize.py` | Done (M4) | Plotly chart with anomaly markers |
 | Report | `report.py` | Stub (M5) | Claude LLM narrative: trend, anomalies, next steps |
 | Serve | `api.py` | Stub (M6) | `POST /analyze` → `{chart_html, report}` |
 
@@ -87,7 +99,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
 
-# verify ingestion + anomaly detection (M2–M3 — all 18 tests pass):
+# verify ingestion, anomaly detection, and chart generation (M2–M4 — all 21 tests pass):
 pytest tests/
 
 # available after M6:
@@ -117,6 +129,7 @@ timelens-llm-ts-analyst/
 │   ├── test_import.py          # Smoke test: package importable, version correct
 │   ├── test_ingest.py          # M2 ingest pipeline tests (9 tests)
 │   ├── test_detect.py          # M3 anomaly detection tests (7 tests)
+│   ├── test_visualize.py       # M4 chart generation tests
 │   └── fixtures/
 │       └── sample.csv          # Hourly temperature fixture with one gap row
 ├── requirements.txt
