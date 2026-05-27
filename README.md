@@ -8,7 +8,7 @@ Drop a CSV time series; get anomaly detection, trend analysis, and LLM-generated
 |---|---|---|
 | M1 | Scaffold: package layout, pinned dependencies, `pyproject.toml`, smoke test | Done |
 | M2 | CSV ingestion and preprocessing (`ingest.py`) | Done |
-| M3 | Anomaly detection — Z-score + IQR (`detect.py`) | Planned |
+| M3 | Anomaly detection — Z-score + IQR (`detect.py`) | Done |
 | M4 | Plotly chart generation (`visualize.py`) | Planned |
 | M5 | Claude LLM narrative report (`report.py`) | Planned |
 | M6 | FastAPI endpoint — `POST /analyze` (`api.py`) | Planned |
@@ -18,6 +18,17 @@ Drop a CSV time series; get anomaly detection, trend analysis, and LLM-generated
 
 **M1 — package scaffold**
 Package is installable (`pip install -e .`), version is importable, smoke test passes.
+
+**M3 — Anomaly detection (`timelens.detect`)**
+
+`detect_anomalies(df, *, zscore_threshold=2.5) → pd.DataFrame`
+
+- Accepts any DataFrame with a `DatetimeIndex` and one or more numeric columns (output of `load_csv()`).
+- Flags rows using Z-score method (configurable threshold, default 2.5) and IQR method (1.5×IQR bounds) independently per column.
+- Guards against division-by-zero on flat series (`std=0`) and false positives on near-flat series (`IQR=0`).
+- Appends `is_anomaly` (bool, union of both methods across all value columns) and `anomaly_score` (float, max absolute Z-score across columns).
+- Does not mutate the input DataFrame.
+- 8 tests pass covering flat series, single spike, step-change outlier, all-anomaly series, threshold sensitivity, output schema (columns and dtypes), and input immutability.
 
 **M2 — CSV ingestion and preprocessing (`timelens.ingest`)**
 
@@ -59,7 +70,7 @@ CSV Upload → ingest.py → detect.py → visualize.py → report.py → JSON r
 | Stage | Module | Status | Responsibility |
 |---|---|---|---|
 | Ingest | `ingest.py` | Done (M2) | Parse CSV, detect timestamp and numeric columns, resample to uniform frequency, forward-fill gaps, return `SeriesMetadata` |
-| Detect | `detect.py` | Stub (M3) | Z-score + IQR anomaly flagging |
+| Detect | `detect.py` | Done (M3) | Z-score + IQR anomaly flagging |
 | Visualize | `visualize.py` | Stub (M4) | Plotly chart with anomaly markers |
 | Report | `report.py` | Stub (M5) | Claude LLM narrative: trend, anomalies, next steps |
 | Serve | `api.py` | Stub (M6) | `POST /analyze` → `{chart_html, report}` |
@@ -76,7 +87,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
 
-# verify the ingestion pipeline (M2 — all 9 tests pass):
+# verify ingestion + anomaly detection (M2–M3 — all 18 tests pass):
 pytest tests/
 
 # available after M6:
@@ -105,6 +116,7 @@ timelens-llm-ts-analyst/
 │   ├── __init__.py
 │   ├── test_import.py          # Smoke test: package importable, version correct
 │   ├── test_ingest.py          # M2 ingest pipeline tests (9 tests)
+│   ├── test_detect.py          # M3 anomaly detection tests (7 tests)
 │   └── fixtures/
 │       └── sample.csv          # Hourly temperature fixture with one gap row
 ├── requirements.txt
