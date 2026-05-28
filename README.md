@@ -11,10 +11,21 @@ Drop a CSV time series; get anomaly detection, trend analysis, and LLM-generated
 | M3 | Anomaly detection — Z-score + IQR (`detect.py`) | Done |
 | M4 | Plotly chart generation (`visualize.py`) | Done |
 | M5 | Claude LLM narrative report (`report.py`) | Done |
-| M6 | FastAPI endpoint — `POST /analyze` (`api.py`) | Planned |
+| M6 | FastAPI endpoint — `POST /analyze` + HTML frontend (`api.py`, `run.py`) | Done |
 | M7 | Demo GIF, polish, deployment notes | Planned |
 
 ## What works
+
+**M6 — FastAPI backend + HTML frontend (`timelens.api`, `run.py`)**
+
+`python run.py` → server at `http://localhost:8000`.
+
+- `GET /` — serves a single-file dark-mode HTML page with drag-and-drop upload, Z-score threshold input, loading spinner, and inline results panel. No external resources, no build step.
+- `POST /analyze?threshold=<float>` — accepts multipart CSV + optional threshold (default 2.5, range 0.1–10.0); runs the full `load_csv → detect_anomalies → render_chart → generate_report` pipeline; returns `{"chart_html": "...", "report": {"trend_summary": "...", "anomaly_explanations": [...], "next_steps": "..."}}`.
+- Chart HTML injected via a `setHTML` helper that re-executes embedded `<script>` tags so the Plotly figure renders correctly.
+- Report text fields set via `textContent` (not `innerHTML`) to prevent XSS from LLM output.
+- Returns `HTTP 400` with a descriptive message for malformed CSVs (no timestamp column, no numeric columns).
+- 5 tests pass: index HTML, success, custom threshold, no-numeric-cols 400, no-timestamp 400.
 
 **M1 — package scaffold**
 Package is installable (`pip install -e .`), version is importable, smoke test passes.
@@ -97,11 +108,9 @@ CSV Upload → ingest.py → detect.py → visualize.py → report.py → JSON r
 | Detect | `detect.py` | Done (M3) | Z-score + IQR anomaly flagging |
 | Visualize | `visualize.py` | Done (M4) | Plotly chart with anomaly markers |
 | Report | `report.py` | Done (M5) | Claude LLM narrative: trend, anomalies, next steps |
-| Serve | `api.py` | Stub (M6) | `POST /analyze` → `{chart_html, report}` |
+| Serve | `api.py` | Done (M6) | `GET /` HTML UI + `POST /analyze` → `{chart_html, report}` |
 
 ## Quickstart
-
-> The API server requires M2–M6 to be complete. The steps below install all dependencies and verify the package is importable. The `uvicorn` command will be functional after M6.
 
 ```bash
 git clone <repo-url>
@@ -111,12 +120,14 @@ source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
 
-# verify ingestion, anomaly detection, chart generation, and LLM report (M2–M5 — all tests pass):
+# run all tests (offline — no Anthropic API key required):
 TIMELENS_OFFLINE=1 pytest tests/
 
-# available after M6:
-# uvicorn timelens.api:app --reload
+# start the server (http://localhost:8000):
+python run.py
 ```
+
+Open `http://localhost:8000` in your browser, drag-and-drop a CSV, and click **Analyze**.
 
 ## Environment Variables
 
@@ -143,8 +154,10 @@ timelens-llm-ts-analyst/
 │   ├── test_detect.py          # M3 anomaly detection tests (8 tests)
 │   ├── test_visualize.py       # M4 chart generation tests (3 tests)
 │   ├── test_report.py          # M5 LLM report tests (8 tests, 1 conditionally skipped)
+│   ├── test_api.py             # M6 FastAPI endpoint tests (5 tests)
 │   └── fixtures/
 │       └── sample.csv          # Hourly temperature fixture with one gap row
+├── run.py              # `python run.py` starts uvicorn on :8000
 ├── requirements.txt
 ├── pyproject.toml
 ├── LICENSE
