@@ -10,7 +10,7 @@ Drop a CSV time series; get anomaly detection, trend analysis, and LLM-generated
 | M2 | CSV ingestion and preprocessing (`ingest.py`) | Done |
 | M3 | Anomaly detection — Z-score + IQR (`detect.py`) | Done |
 | M4 | Plotly chart generation (`visualize.py`) | Done |
-| M5 | Claude LLM narrative report (`report.py`) | Planned |
+| M5 | Claude LLM narrative report (`report.py`) | Done |
 | M6 | FastAPI endpoint — `POST /analyze` (`api.py`) | Planned |
 | M7 | Demo GIF, polish, deployment notes | Planned |
 
@@ -29,6 +29,18 @@ Package is installable (`pip install -e .`), version is importable, smoke test p
 - Appends `is_anomaly` (bool, union of both methods across all value columns) and `anomaly_score` (float, max absolute Z-score across columns).
 - Does not mutate the input DataFrame.
 - 8 tests pass covering flat series, single spike, step-change outlier, all-anomaly series, threshold sensitivity, output schema (columns and dtypes), and input immutability.
+
+**M5 — Claude LLM narrative report (`timelens.report`)**
+
+`generate_report(metadata, df, *, top_n=5, context_window=3) → ReportResult`
+
+- Builds a structured prompt from `SeriesMetadata` + top-N anomaly rows with surrounding context windows.
+- Calls `claude-opus-4-6` via the Anthropic streaming API; accumulates the full response via `stream.get_final_text()`.
+- Parses the JSON response into a `ReportResult` dataclass with `trend_summary` (str), `anomaly_explanations` (list[str]), and `next_steps` (str).
+- Strips accidental markdown fences (` ```json ``` `) from the response before parsing.
+- Returns `OFFLINE_STUB` (prefixed `[offline]`) when `TIMELENS_OFFLINE=1` is set or `ANTHROPIC_API_KEY` is absent — no network call.
+- Catches `anthropic.APIError` and generic exceptions; returns a `ReportResult` with the error message instead of raising.
+- 7 tests pass (1 skipped when sample data contains no anomalies).
 
 **M4 — Plotly chart generation (`timelens.visualize`)**
 
@@ -69,7 +81,7 @@ Ops teams and data analysts routinely wrestle with time-series CSVs—server met
 - Pandas — CSV ingestion and preprocessing
 - NumPy — numerical operations underlying anomaly detection
 - Plotly — interactive chart generation
-- Anthropic Claude (`claude-sonnet-4-6`) — LLM narrative report
+- Anthropic Claude (`claude-opus-4-6`) — LLM narrative report
 
 ## Architecture
 
@@ -84,7 +96,7 @@ CSV Upload → ingest.py → detect.py → visualize.py → report.py → JSON r
 | Ingest | `ingest.py` | Done (M2) | Parse CSV, detect timestamp and numeric columns, resample to uniform frequency, forward-fill gaps, return `SeriesMetadata` |
 | Detect | `detect.py` | Done (M3) | Z-score + IQR anomaly flagging |
 | Visualize | `visualize.py` | Done (M4) | Plotly chart with anomaly markers |
-| Report | `report.py` | Stub (M5) | Claude LLM narrative: trend, anomalies, next steps |
+| Report | `report.py` | Done (M5) | Claude LLM narrative: trend, anomalies, next steps |
 | Serve | `api.py` | Stub (M6) | `POST /analyze` → `{chart_html, report}` |
 
 ## Quickstart
@@ -99,8 +111,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
 
-# verify ingestion, anomaly detection, and chart generation (M2–M4 — all 21 tests pass):
-pytest tests/
+# verify ingestion, anomaly detection, chart generation, and LLM report (M2–M5 — all tests pass):
+TIMELENS_OFFLINE=1 pytest tests/
 
 # available after M6:
 # uvicorn timelens.api:app --reload
@@ -128,8 +140,9 @@ timelens-llm-ts-analyst/
 │   ├── __init__.py
 │   ├── test_import.py          # Smoke test: package importable, version correct
 │   ├── test_ingest.py          # M2 ingest pipeline tests (9 tests)
-│   ├── test_detect.py          # M3 anomaly detection tests (7 tests)
-│   ├── test_visualize.py       # M4 chart generation tests
+│   ├── test_detect.py          # M3 anomaly detection tests (8 tests)
+│   ├── test_visualize.py       # M4 chart generation tests (3 tests)
+│   ├── test_report.py          # M5 LLM report tests (8 tests, 1 conditionally skipped)
 │   └── fixtures/
 │       └── sample.csv          # Hourly temperature fixture with one gap row
 ├── requirements.txt
