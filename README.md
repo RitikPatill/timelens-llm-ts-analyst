@@ -1,5 +1,9 @@
 # TimeLens – LLM Time-Series Analyst
 
+
+> **Video walkthrough:** https://youtu.be/hB7f9eMVDYc
+> **60-second overview:** https://youtu.be/m9FM9qLtY9k
+
 > Drop a CSV time series; get anomaly detection, trend analysis, and LLM-generated plain-English explanations in seconds.
 
 <!-- TODO: replace with a 5-10 second demo gif. Record with ScreenToGif on
